@@ -1,0 +1,67 @@
+name: Autonomous Book Agent
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'book/**'
+      - 'outputs/**'
+      - 'state.json'
+      - 'book_manifest.json'
+  workflow_dispatch:
+  schedule:
+    - cron: '17 * * * *'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: autonomous-book-agent
+  cancel-in-progress: false
+
+jobs:
+  write-book:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      BOOK_AGENT_MODEL: ${{ vars.BOOK_AGENT_MODEL || 'gpt-5.6-luna' }}
+      BOOK_AGENT_SECTIONS_PER_RUN: ${{ vars.BOOK_AGENT_SECTIONS_PER_RUN || '8' }}
+      BOOK_AGENT_MAX_RETRIES: '3'
+      PYTHONUNBUFFERED: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate prerequisites
+        shell: bash
+        run: |
+          test -n "$OPENAI_API_KEY" || (echo 'OPENAI_API_KEY secret is missing' && exit 1)
+          test -f 'source/بتن.docx' || (echo 'source/بتن.docx is missing' && exit 2)
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Initialize or extract source
+        run: python agent/bootstrap_source.py
+      - name: Run autonomous batch
+        run: python agent/run_github_batch.py
+      - name: Commit checkpoint
+        shell: bash
+        run: |
+          git config user.name 'Concrete Book Agent'
+          git config user.email 'actions@users.noreply.github.com'
+          git add book_manifest.json state.json book outputs android 2>/dev/null || true
+          if ! git diff --cached --quiet; then
+            git commit -m 'agent: autonomous checkpoint'
+            git push
+          fi
+      - name: Upload checkpoint
+        uses: actions/upload-artifact@v4
+        with:
+          name: concrete-book-checkpoint
+          path: |
+            book/
+            book_manifest.json
+            state.json
+            outputs/
+          if-no-files-found: warn
