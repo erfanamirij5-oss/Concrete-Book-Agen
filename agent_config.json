@@ -1,0 +1,11 @@
+{
+  "project": "بتن؛ فلسفه، جامعه و ماده",
+  "author": "عرفان امیری",
+  "autonomous": true,
+  "outline_lock": true,
+  "manual_approval": false,
+  "default_model": "gpt-5.6-luna",
+  "sections_per_run": 8,
+  "max_retries": 3,
+  "final_target": "android_apk_aab"
+}
